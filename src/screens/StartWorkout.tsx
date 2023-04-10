@@ -18,47 +18,92 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Calendar } from "react-native-calendars";
 import { ListItem } from "react-native-elements";
+import moment from "moment";
 
-type Workout = {
-  workout_id: number;
-  user_id: string;
-  workout_name: string;
-  active: boolean;
-}
+type Exercise = {
+    exercise_id: number;
+    workout_id: number;
+    name: string;
+    sets: string;
+    reps: string;
+    day: string;
+  }
+
+  type CompletedExercise = {
+    exercise_id: number;
+    workout_id: number;
+    user_id: string;
+    weight: number;
+    date: Date;
+  }
 
 export default function ({
   navigation,
 }: NativeStackScreenProps<MainStackParamList, "MainTabs">) {
   const { isDarkmode, setTheme } = useTheme();
-  const [workouts, setWorkouts] = useState<Array<Workout>>([]);
-  const [textInput, setTextInput] = useState([])
+  const [exercises, setExercises] = useState<Array<Exercise>>([]);
+  const [ weight, setWeight ] = useState<string>("");
   const user = supabase.auth.user();
   const user_id = user?.id;
+  const day = moment().format('dddd')
+  const displayDate = moment().format("MMM Do YYYY");  
+  const date = moment().format('DD,MM,YYYY');
+  
 
-    const fetchActiveWorkout = async () => {
-      const { data: workouts, error } = await supabase
-      .from<Workout>('workouts')
+    const fetchExercises= async () => {
+      const workout_id = await getWorkout();
+      const { data: exercises, error } = await supabase
+      .from<Exercise>('exercises')
       .select('*')
-      .eq('user_id', user_id!)
-      .eq('active', true)
+      .eq('workout_id', workout_id!)
+      .eq('day', day) 
     if (error) console.log('error', error)
-    else setWorkouts(workouts)
+    else setExercises(exercises)
     }
 
-    const saveWorkoutId = async (workout_id: number) => {
-      await AsyncStorage.removeItem('workoutID')
-      const jsonValue = JSON.stringify(workout_id)
-      await AsyncStorage.setItem('workoutID', jsonValue)
+    const getWorkout = async () => {
+        try {
+          const workoutId = await AsyncStorage.getItem('workoutID')
+          if(workoutId !== null) {
+            const workoutIdNo = parseInt(workoutId);
+            console.log('WorkoutId', workoutId)
+            return workoutIdNo;
+          }
+        } catch (e) {
+          console.log('Could not retrieve value')
+        }
       }
 
+      const saveExercise = async (exercise_id: number) => {
+        const workout_id = await getWorkout()
+        if(exercise_id) {
+          const { data: completedExercise, error } = await supabase
+          .from('completed_exercises')
+          .insert({ exercise_id, user_id, workout_id, date, weight })
+          .single()
+        if (error) console.log(error.message)
+        else {
+          setWeight('')
+        } 
+        }
+    }
+
   useEffect(()  => {
-    fetchActiveWorkout();
+    fetchExercises();
   }, [])
 
   return (
     <Layout>
       <TopNav
-        middleContent="Home"
+        middleContent="Workout"
+        leftContent={
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={isDarkmode ? themeColor.white100 : themeColor.dark}
+            />
+          }
+          leftAction={() => navigation.goBack()} 
         rightContent={
           <Ionicons
             name={isDarkmode ? "sunny" : "moon"}
@@ -84,13 +129,13 @@ export default function ({
         <Section style={{ marginTop: 20, width: '90%', }}>
           <SectionContent>
             <Text fontWeight="bold" style={{ textAlign: "center" }}>
-              Your Workout Plan
+               {displayDate}
             </Text>
             <FlatList
-          scrollEnabled={false}
-          data={workouts}
-          keyExtractor={(item) => `${item.workout_id}`}
-          renderItem={({ item: workout }) => (
+          scrollEnabled={true}
+          data={exercises}
+          keyExtractor={(item) => `${item.exercise_id}`}
+          renderItem={({ item: exercise }) => (
             <ListItem>
               <ListItem.Content>
                 <View
@@ -98,12 +143,21 @@ export default function ({
                     { display: 'flex', flexDirection: 'row', justifyContent: 'space-evenly' },
                   ]}
                 >
-                  <View style={styles.exercise}>
+                  <View style={styles.item}>
                     <View style={styles.thirdRow}>
-                  <Text>{workout.workout_name}</Text>
+                  <Text>{exercise.name}</Text>
+                  <Text>Sets: {exercise.sets}</Text>
+                  <Text>Reps: {exercise.reps}</Text>
                   </View>
                   <View style={styles.bottomRow}>
-                  <Button text="Start Workout" onPress={() => {saveWorkoutId(workout.workout_id), navigation.navigate("StartWorkout")}}></Button>
+                  <Text>Weight (kg)</Text>
+                  <TextInput style={styles.textInput}
+              value={weight}
+              autoCorrect={false}
+              keyboardType="numeric" 
+              onChangeText={(text) => exercise[index]}
+            />
+                  <Button text="Save" onPress={() => saveExercise(exercise.exercise_id)}></Button>
                   </View>
                 </View>
                 </View>
@@ -111,24 +165,6 @@ export default function ({
             </ListItem>
           )}
         />
-            <Button
-              style={{ marginTop: 10 }}
-              text="Create and Edit Workouts"
-              status="info"
-              onPress={() => {
-                navigation.navigate("AddWorkout");
-              }}
-            />
-            <Button
-              text="View Saved Workouts"
-              status = 'info'
-              onPress={() => {
-                navigation.navigate("ViewSavedWorkouts");
-              }}
-              style={{
-                marginTop: 10,
-              }}
-            />
           </SectionContent>
         </Section>
       </View>
@@ -144,6 +180,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginRight: 10,
     marginTop: 17,
+    borderBottomWidth: 1
   },
   itemText: {
     color: '#888',
@@ -198,7 +235,7 @@ const styles = StyleSheet.create({
     },
     bottomRow: {
       flexDirection: 'row',
-      justifyContent: 'flex-end',
+      justifyContent: 'space-between',
       flex: 2
   },
   exerciseTextInput: {
@@ -210,7 +247,7 @@ const styles = StyleSheet.create({
   textInput: {
     marginTop: 5,
     width: '10%',
-    height: '150%',
+    height: '70%',
     backgroundColor: '#e6e6e6'
   },
   verticallySpaced: {

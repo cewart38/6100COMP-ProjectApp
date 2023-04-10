@@ -1,4 +1,4 @@
-import { StyleSheet, View, TextInput, FlatList, SafeAreaView, ScrollView } from 'react-native';
+import { StyleSheet, View, TextInput, FlatList, SafeAreaView, ScrollView, Alert } from 'react-native';
 import {
   Layout,
   Button,
@@ -14,9 +14,13 @@ import { Input, ListItem } from 'react-native-elements'
 import React, { useEffect, useState } from "react";
 import { supabase } from '../../initSupabase';
 import day from 'react-native-calendars/src/calendar/day';
+import getWorkoutId from '../../screens/AddWorkout'
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Collapsible from 'react-native-collapsible';
 
 type Exercise = {
   exercise_id: number;
+  workout_id: number;
   name: string;
   sets: string;
   reps: string;
@@ -24,7 +28,7 @@ type Exercise = {
 }
 
 
-export const ExerciseCard = ({ day }) => {
+export const ExerciseCard = ( {selectedDay} ) => {
 
   const initialState = {
     restDay: false, 
@@ -35,18 +39,44 @@ export const ExerciseCard = ({ day }) => {
     const [sets, setSets] = useState<string>("");   
     const [reps, setReps] = useState<string>("");
     const [state, setState] = React.useState(initialState);
+    const [day, setDay] = useState<string>("");
+    const [workout_id, setWorkout_id] = useState<number>()
     const [restDay, setRestDay] = React.useState(false);
 
-    useEffect(()  => {
-      fetchExercises()
-    }, [])
+    const getWorkout = async () => {
+      try {
+        const workoutId = await AsyncStorage.getItem('workoutID')
+        if(workoutId !== null) {
+          const workoutIdNo = parseInt(workoutId);
+          return workoutIdNo;
+        }
+      } catch (e) {
+        console.log('Could not retrieve value')
+      }
+    }
 
-    const addExercise = async (name: string, sets: string, reps: string) => {
-        console.log('New Exercise: ', name + sets + reps)
+    const getDay = async () => {
+      try {
+        const day = await AsyncStorage.getItem('day')
+        if(day !== null) {
+          return day;
+        }
+      } catch (e) {
+        console.log('Could not retrieve value')
+      }
+    }
+
+    useEffect(()  => {
+      fetchExercises();
+    }, []);
+
+    const  addExercise = async (name: string, sets: string, reps: string) => {
+      const workout_id = await getWorkout();
+      const day = await getDay();
         if(name.length) {
           const { data: exercise, error } = await supabase
           .from('exercises')
-          .insert({ name, sets, reps, day })
+          .insert({ name, sets, reps, day, workout_id })
           .single()
         if (error) console.log(error.message)
         else {
@@ -58,10 +88,14 @@ export const ExerciseCard = ({ day }) => {
     }
 
     const fetchExercises = async () => {
+      const workout_id = await getWorkout();
+      const day = await getDay();
       const { data: exercises, error } = await supabase
       .from<Exercise>('exercises')
       .select('*')
-      .order('exercise_id', { ascending: false })
+      .eq('workout_id', workout_id!)
+      .eq('day', day!)
+      .order('exercise_id', { ascending: true })
     if (error) console.log('error', error)
     else setExercises(exercises)
     }
@@ -72,11 +106,30 @@ export const ExerciseCard = ({ day }) => {
       else setExercises(exercises.filter((x) => x.exercise_id !== Number(exercise_id)))
     }
 
+    const showConfirmDialog = (exercise_id:number) => {
+      return Alert.alert(
+        "Are you sure?",
+        "Exercise will be deleted",
+        [
+          {
+            text: "Yes",
+            onPress: () => {
+              deleteExercise(exercise_id)
+            },
+          },
+          {
+            text: "No",
+          },
+        ]
+      );
+    };
+
 
     return (
+      <SafeAreaView style={{flex:1}}>
         <View style={styles.card}>
             <View style={styles.topRow}>
-                <Text style={styles.topRowText}>{day}</Text>
+                <Text style={styles.topRowText}>{selectedDay}</Text>
                 <CheckBox
               value={state.restDay}
               onValueChange={value =>
@@ -92,7 +145,7 @@ export const ExerciseCard = ({ day }) => {
               placeholder="Exercise Name"
               value={name}
               autoCapitalize='words'
-              autoCorrect={false}
+              autoCorrect={true}
               keyboardType="default"
               onChangeText={(text) => setName(text)}
             />
@@ -128,7 +181,8 @@ export const ExerciseCard = ({ day }) => {
               }}
             />
             </View>
-            <SafeAreaView style={styles.verticallySpaced}>
+            </View>
+            <View style={styles.exerciseCard}>
         <FlatList
           scrollEnabled={true}
           data={exercises}
@@ -143,12 +197,12 @@ export const ExerciseCard = ({ day }) => {
                 >
                   <View style={styles.exercise}>
                     <View style={styles.thirdRow}>
-                  <Text>Exercise: {exercise.name}</Text>
+                  <Text>{exercise.name}</Text>
                   <Text>Sets: {exercise.sets}</Text>
                   <Text>Reps: {exercise.reps}</Text>
                   </View>
                   <View style={styles.bottomRow}>
-                  <Button status='danger' text="Delete" onPress={() => deleteExercise(exercise.exercise_id)}></Button>
+                  <Button status='danger' text="Delete" onPress={() => showConfirmDialog(exercise.exercise_id)}></Button>
                   </View>
                 </View>
                 </View>
@@ -156,8 +210,8 @@ export const ExerciseCard = ({ day }) => {
             </ListItem>
           )}
         />
+      </View>
       </SafeAreaView>
-        </View>
         
     )
 }
@@ -165,7 +219,7 @@ export const ExerciseCard = ({ day }) => {
 
 const styles = StyleSheet.create({
     card: {
-        width: '90%',
+        width: '349%',
         borderRadius: 3,
         backgroundColor: '#fff',
         shadowColor: '#000',
@@ -175,8 +229,21 @@ const styles = StyleSheet.create({
         flexDirection: 'column',
         flex: 1,
         padding: 10,
-        position: 'absolute', top: 10
+        marginBottom: 30,
+        marginTop: 10
     },
+    exerciseCard: {
+      width: '90%',
+      borderRadius: 3,
+      backgroundColor: '#fff',
+      shadowColor: '#000',
+      shadowOffset: { width: 2, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 1,
+      flexDirection: 'row',
+      flex: 2.5,
+      padding: 10,
+  },
     topRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -190,7 +257,7 @@ const styles = StyleSheet.create({
       flexDirection: 'column',
       justifyContent: 'space-between',
       paddingBottom: 30,
-      flex: 1
+      flex: 1.3
     },
     thirdRow: {
       flexDirection: 'row',
@@ -201,7 +268,7 @@ const styles = StyleSheet.create({
     bottomRow: {
       flexDirection: 'row',
       justifyContent: 'flex-end',
-      flex: 1
+      flex: 2
   },
   exerciseTextInput: {
     marginTop: 5,

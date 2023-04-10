@@ -10,10 +10,13 @@ import {
   themeColor,
   CheckBox,
 } from "react-native-rapi-ui";
+import { MainStackParamList } from "../../types/navigation";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Input, ListItem } from 'react-native-elements'
 import React, { useEffect, useState } from "react";
 import { supabase } from '../../initSupabase';
 import { useUser } from '../../provider/UserContext';
+import navigation from '../../navigation';
 
 type Workout = {
   workout_id: number;
@@ -22,28 +25,31 @@ type Workout = {
 }
 
 
-export const AddWorkoutCard = () => {
-
+export const AddWorkoutCard = ({
+  navigation,
+}: NativeStackScreenProps<MainStackParamList, "MainTabs">) => {
 
     const [workouts, setWorkouts] = useState<Array<Workout>>([]);
-    const [name, setName] = useState<string>("");
-    const { user } = useUser();
+    const [workout_name, setWorkoutName] = useState<string>("");
+    //const { user } = useUser();
     const [restDay, setRestDay] = React.useState(false);
+    const user = supabase.auth.user();
+    const user_id = user?.id;
+    console.log(user_id);
 
     useEffect(()  => {
       fetchWorkouts()
     }, [])
 
-    const addWorkout = async (name: string) => {
-        console.log('New Workout: ', name)
-        if(name.length) {
+    const addWorkout = async (workout_name: string) => {
+        if(workout_name.length) {
           const { data: workout, error } = await supabase
           .from('workouts')
-          .insert({ name, user_id: user!.id })
+          .insert({ workout_name, user_id })
           .single()
         if (error) console.log(error.message)
         else {
-          setName('')
+          setWorkoutName('')
         } 
         }
     }
@@ -63,8 +69,8 @@ export const AddWorkoutCard = () => {
       else setWorkouts(workouts.filter((x) => x.workout_id !== Number(workout_id)))
     }
 
-
     return (
+      <SafeAreaView style={{flex:1}}>
         <View style={styles.card}>
             <View style={styles.topRow}>
                 <Text style={styles.topRowText}>New Workout</Text>
@@ -72,25 +78,26 @@ export const AddWorkoutCard = () => {
             <View style={styles.secondRow}>
             <TextInput style={styles.exerciseTextInput}
               placeholder="Workout Name"
-              value={name}
+              value={workout_name}
               autoCapitalize='words'
               autoCorrect={false}
               keyboardType="default"
-              onChangeText={(text) => setName(text)}
+              onChangeText={(text) => setWorkoutName(text)}
             />
             </View>
             <View style={styles.bottomRow}>
             <Button
               text='Add Workout'
               onPress={() => {
-                addWorkout(name), fetchWorkouts()
+                addWorkout(workout_name), fetchWorkouts()
               }}
               style={{
                 marginTop: 0,
               }}
             />
             </View>
-            <SafeAreaView style={styles.verticallySpaced}>
+            </View>
+            <View style={styles.exerciseCard}>
         <FlatList
           scrollEnabled={true}
           data={workouts}
@@ -105,10 +112,18 @@ export const AddWorkoutCard = () => {
                 >
                   <View style={styles.exercise}>
                     <View style={styles.thirdRow}>
-                  <Text>Exercise: {workout.workout_name}</Text>
+                  <Text>Workout: {workout.workout_name}</Text>
                   </View>
                   <View style={styles.bottomRow}>
                   <Button status='danger' text="Delete" onPress={() => deleteWorkout(workout.workout_id)}></Button>
+                  <Button
+                      style={{ marginTop: 10 }}
+                      text="Edit"
+                      status="info"
+                      onPress={() => {
+                        navigation.navigate("AddExercise");
+                      }}
+            />
                   </View>
                 </View>
                 </View>
@@ -116,8 +131,8 @@ export const AddWorkoutCard = () => {
             </ListItem>
           )}
         />
-      </SafeAreaView>
-        </View>
+      </View>
+        </SafeAreaView>
         
     )
 }
@@ -137,6 +152,18 @@ const styles = StyleSheet.create({
         padding: 10,
         position: 'absolute', top: 10
     },
+    exerciseCard: {
+      width: '90%',
+      borderRadius: 3,
+      backgroundColor: '#fff',
+      shadowColor: '#000',
+      shadowOffset: { width: 2, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 1,
+      flexDirection: 'row',
+      flex: 2.5,
+      padding: 10,
+  },
     topRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',

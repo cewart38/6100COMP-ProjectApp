@@ -1,6 +1,12 @@
 export type MainStackParamList = {
 	MainTabs: undefined;
-	SecondScreen: undefined;
+	AddWorkout: undefined;
+	AddExercise: undefined;
+	SelectDay: undefined;
+	ViewSelectDay: undefined;
+	ViewExercises: undefined;
+	ViewSavedWorkouts: undefined;
+	StartWorkout: undefined;
 };
 
 export type AuthStackParamList = {

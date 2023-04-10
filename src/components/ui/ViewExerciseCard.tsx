@@ -13,38 +13,69 @@ import {
 import { Input, ListItem } from 'react-native-elements'
 import React, { useEffect, useState } from "react";
 import { supabase } from '../../initSupabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Exercise = {
   exercise_id: number;
+  workout_id: number;
   name: string;
   sets: string;
   reps: string;
+  day: string;
 }
 
+export const ViewExerciseCard = ({selectedDay}) => {
 
-export const ViewExercise = () => {
+  const [exercises, setExercises] = useState<Array<Exercise>>([]);
+  const [name, setName] = useState<string>("");
+  const [sets, setSets] = useState<string>("");   
+  const [reps, setReps] = useState<string>("");
+  const [day, setDay] = useState<string>("");
+  const [workout_id, setWorkout_id] = useState<number>()
+  const [restDay, setRestDay] = React.useState(false);
 
-    const [exercises, setExercises] = useState<Array<Exercise>>([]);
-
-    useEffect(()  => {
-      fetchExercises();
-    }, [])
-
-
-    const fetchExercises = async () => {
-      const { data: exercises, error } = await supabase
-      .from<Exercise>('exercises')
-      .select('*')
-      .order('exercise_id', { ascending: false })
-    if (error) console.log('error', error)
-    else setExercises(exercises)
+  const getWorkout = async () => {
+    try {
+      const workoutId = await AsyncStorage.getItem('workoutID')
+      if(workoutId !== null) {
+        const workoutIdNo = parseInt(workoutId);
+        return workoutIdNo;
+      }
+    } catch (e) {
+      console.log('Could not retrieve value')
     }
+  }
 
-    const deleteExercise = async (exercise_id: number) => {
-      const { error } = await supabase.from<Exercise>('exercises').delete().eq('exercise_id', exercise_id)
-      if (error) console.log('error', error)
-      else setExercises(exercises.filter((x) => x.exercise_id !== Number(exercise_id)))
+  const getDay = async () => {
+    try {
+      const day = await AsyncStorage.getItem('day')
+      if(day !== null) {
+        return day;
+      }
+    } catch (e) {
+      console.log('Could not retrieve value')
     }
+  }
+
+  useEffect(()  => {
+    fetchExercises();
+  }, []);
+
+
+  const fetchExercises = async () => {
+    const workout_id = await getWorkout();
+    const day = await getDay();
+    console.log('ID: ', workout_id)
+    console.log('Day: ', day)
+    const { data: exercises, error } = await supabase
+    .from<Exercise>('exercises')
+    .select('*')
+    .eq('workout_id', workout_id!)
+    .eq('day', day!)
+    .order('exercise_id', { ascending: true })
+  if (error) console.log('error', error)
+  else setExercises(exercises)
+  }
 
 
     return (
@@ -65,11 +96,10 @@ export const ViewExercise = () => {
                   <View style={styles.exercise}>
                     <View style={styles.thirdRow}>
                   <Text>Exercise: {exercise.name}</Text>
-                  <Text>Sets: {exercise.sets}</Text>
-                  <Text>Reps: {exercise.reps}</Text>
                   </View>
                   <View style={styles.bottomRow}>
-                  <Button status='danger' text="Delete" onPress={() => deleteExercise(exercise.exercise_id)}></Button>
+                  <Text>Sets: {exercise.sets}</Text>
+                  <Text>Reps: {exercise.reps}</Text>
                   </View>
                 </View>
                 </View>
@@ -89,7 +119,6 @@ const styles = StyleSheet.create({
         width: '90%',
         flexDirection: 'column',
         padding: 10,
-        position: 'absolute', bottom: 100
     },
     list: {
         backgroundColor: '#fff'
@@ -109,12 +138,12 @@ const styles = StyleSheet.create({
     },
     thirdRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
+      alignContent: 'center',
       paddingBottom: 30
     },
     bottomRow: {
       flexDirection: 'row',
-      justifyContent: 'flex-end',
+      justifyContent: 'space-between',
   },
   verticallySpaced: {
     paddingTop: 4,

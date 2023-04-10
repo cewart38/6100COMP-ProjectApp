@@ -26,12 +26,13 @@ export default function ({
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  const [username, setUsername] = useState<string>("");
 
   async function register() {
     setLoading(true);
     const { user, error } = await supabase.auth.signUp({
       email: email,
-      password: password,
+      password: password
     });
     if (!error && !user) {
       setLoading(false);
